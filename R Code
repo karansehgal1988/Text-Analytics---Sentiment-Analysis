@@ -1,0 +1,94 @@
+library(tm) # for text mining
+library(SnowballC) # for text stemming
+library(textstem) # for Lemmitization
+library(wordcloud) # word-cloud generator
+library(RColorBrewer) # color palettes
+library(syuzhet) # for sentiment analysis
+library(ggplot2) # for plotting graphs
+library(officer) # For reading ppt
+library(RCurl)# Web 
+library(XML)  
+library(dplyr)
+library(stringr
+library(tidytext)
+library(plyr)
+
+data1=read.delim(file.choose())
+
+
+data2 = Corpus(VectorSource(as.vector(data1))) 
+
+#Replacing "/", "@" and "|" with space
+toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
+text1 <- tm_map(data2, toSpace, "/")
+text1 <- tm_map(text1, toSpace, "@")
+text1 <- tm_map(text1, toSpace, "\\|")
+# Convert the text to lower case
+text1 <- tm_map(text1, content_transformer(tolower))
+# Remove numbers
+text1 <- tm_map(text1, removeNumbers)
+# Remove english common stopwords
+text1 <- tm_map(text1, removeWords, stopwords("english"))
+# Remove punctuations
+text1 <- tm_map(text1, removePunctuation)
+# Eliminate extra white spaces
+text1 <- tm_map(text1, stripWhitespace)
+
+text1 <- tm_map(text1, stemDocument)
+
+text1 = lemmatize_words(text1)
+
+
+dtm <- TermDocumentMatrix(text1)
+m<- as.matrix(dtm)
+m=as.data.frame(m)
+
+v <- sort(rowSums(m),decreasing=TRUE)
+d <- data.frame(word = names(v),freq=v)
+
+senti<-get_nrc_sentiment(d$word)
+senti = senti%>%colSums()%>%data.frame()
+senti$Sentiment = rownames(senti)
+rownames(senti)=NULL
+names(senti)[1]="Counts"
+senti=senti[,2:1]
+
+
+
+senti = senti[!senti$Sentiment=="positive",]
+senti = senti[!senti$Sentiment=="negative",]
+
+senti=senti[order(senti$Counts,decreasing = T),]
+
+senti$Percentage = (senti$Counts/sum(senti$Counts))*100
+senti$Percentage = paste0(senti$Percentage,"%") 
+
+plot1 = ggplot(data=senti, aes(x=Sentiment, y=Counts,fill=Sentiment)) +
+  geom_bar(stat="identity", position=position_dodge())+
+  geom_text(aes(label=Percentage), vjust=1.6, color="white",
+            position = position_dodge(0.9), size=3.5)+
+  scale_fill_brewer(palette="Paired")+
+  theme_minimal()
+
+plot1
+
+#Sentiment Analysis method 1  (Tidy Text Package)
+
+sentiment = get_sentiments(lexicon = c("nrc"))
+
+senti=join(t,sentiment,type="inner")
+
+senti[,1:2]=list(NULL)
+
+senti=data.frame(table(senti$sentiment))
+
+names(senti)[1]="Sentiments"
+names(senti)[2]="Counts"
+
+ggplot(data=senti, aes(x=Sentiments, y=Counts,fill=Sentiments)) +
+  geom_bar(stat="identity", position=position_dodge())+
+  geom_text(aes(label=Counts), vjust=1.6, color="white",
+            position = position_dodge(0.9), size=3.5)+
+  scale_fill_brewer(palette="Paired")+
+  theme_minimal()
+
